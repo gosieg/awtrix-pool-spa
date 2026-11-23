@@ -116,9 +116,9 @@ class PoolSpaMonitor
         # 1. Both pumps off
         if !self.pool_pump && !self.spa_pump
             if height() >= 16
-                text(1, 6, "Pool pump off", GRAY)
+                text(1, 10, "Pool pump off", GRAY)
             else
-                text(1, 6, "PUMP OFF", GRAY)
+                text(1, 10, "PUMP OFF", GRAY)
             end
             return
         end
@@ -139,10 +139,10 @@ class PoolSpaMonitor
         # -------------------------------------------------------------
         if height() >= 16
             if is_chilling
-                # Chiller is ON: Line 1 = "Pool: [cur]°", Line 2 = "Chiller on" (in cool cyan)
+                # Chiller is ON: Line 1 = "Pool: [cur]°", Line 2 = "Chiller On" (in cool cyan)
                 text(1, 6, "Pool: ", WHITE)
                 text(33, 6, str(cur_temp) + "°", WHITE)
-                text(1, 14, "Chiller on", CYAN)
+                text(1, 14, "Chiller On", CYAN)
             elif is_heating
                 # Heater is ON: Line 1 = "Pool:" / "Spa:", Line 2 = "[cur]° -> [target]°"
                 text(1, 6, name, WHITE)
