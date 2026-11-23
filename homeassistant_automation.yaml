@@ -1,0 +1,35 @@
+alias: "Pixel Clock: Sync Pool & Spa State to Native App"
+description: "Publishes live pool and spa temperatures, targets, pumps & heating statuses to Awtrix native app"
+triggers:
+  - trigger: state
+    entity_id:
+      - water_heater.pool
+      - water_heater.spa
+    attribute: current_temperature
+  - trigger: state
+    entity_id:
+      - water_heater.pool
+      - water_heater.spa
+  - trigger: state
+    entity_id:
+      - switch.pool_pump
+      - switch.spa_pump
+  - trigger: time_pattern
+    minutes: "/5"
+actions:
+  - action: mqtt.publish
+    data:
+      topic: "awtrix/pool_spa"
+      retain: true
+      payload: >-
+        {{ {
+          "pool": state_attr('water_heater.pool', 'current_temperature') | round(0, default=62),
+          "pool_target": state_attr('water_heater.pool', 'temperature') | round(0, default=86),
+          "pool_pump": is_state('switch.pool_pump', 'on'),
+          "pool_heat": states('water_heater.pool') in ['Gas Heater', 'on'],
+          "spa": state_attr('water_heater.spa', 'current_temperature') | round(0, default=98),
+          "spa_target": state_attr('water_heater.spa', 'temperature') | round(0, default=100),
+          "spa_pump": is_state('switch.spa_pump', 'on'),
+          "spa_heat": states('water_heater.spa') in ['Gas Heater', 'on']
+        } | to_json }}
+mode: restart
