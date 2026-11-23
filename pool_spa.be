@@ -116,8 +116,7 @@ class PoolSpaMonitor
         # 1. Both pumps off
         if !self.pool_pump && !self.spa_pump
             if height() >= 16
-                text(1, 6, "POOL PUMP", GRAY)
-                text(1, 14, "OFF", GRAY)
+                text(1, 6, "Pool pump off", GRAY)
             else
                 text(1, 6, "PUMP OFF", GRAY)
             end
