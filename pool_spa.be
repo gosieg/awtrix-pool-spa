@@ -142,7 +142,7 @@ class PoolSpaMonitor
                 text(x3, 14, str(target_temp) + "°", ORANGE)
             else
                 # Line 2: "temp [cur]°"
-                text(1, 14, "temp " + str(cur_temp) + "°", BLUE)
+                text(1, 14, str(cur_temp) + "°", BLUE)
             end
             return
         end
