@@ -1,7 +1,7 @@
 # @name Pool & Spa Monitor
 # @desc Live pool & spa display with heating and chiller states
 # @author Assistant
-# @version 3.1
+# @version 3.2
 
 import json
 
@@ -32,7 +32,7 @@ class PoolSpaMonitor
         self.spa_pump = false
         self.spa_heat = false
 
-        # Bitmaps for 0-9, degree, arrow, dash, space, letters C, H, I, L (3 columns x 5 rows)
+        # Bitmaps for 0-9, degree, arrow, dash, space, letters C, H, I, L, O, N (3 columns x 5 rows)
         self.font3x5 = {
             '0': [0x1F, 0x11, 0x1F],
             '1': [0x00, 0x1F, 0x00],
@@ -109,7 +109,6 @@ class PoolSpaMonitor
         clear()
 
         var ORANGE = 0xFF7700
-        var BLUE   = 0x00B4D8
         var CYAN   = 0x00E5FF
         var WHITE  = 0xFFFFFF
         var GRAY   = 0x777777
@@ -133,15 +132,17 @@ class PoolSpaMonitor
         var is_heating = is_spa ? self.spa_heat : self.pool_heat
         var is_chilling = !is_spa && self.pool_pump && self.pool_chiller
 
-        var cur_color = (cur_temp >= target_temp) ? ORANGE : BLUE
+        # Current temperature is WHITE unless heating and reached target temp (then turns ORANGE)
+        var cur_color = (is_heating && cur_temp >= target_temp) ? ORANGE : WHITE
 
         # -------------------------------------------------------------
         # Case A: TALL DISPLAY (TC002, 52x16)
         # -------------------------------------------------------------
         if height() >= 16
             if is_chilling
-                # Chiller is ON: Line 1 = "Pool: [cur]°", Line 2 = "Chiller on"
-                text(1, 6, "Pool: " + str(cur_temp) + "°", CYAN)
+                # Chiller is ON: Line 1 = "Pool: [cur]°", Line 2 = "Chiller on" (in cool cyan)
+                text(1, 6, "Pool: ", WHITE)
+                text(33, 6, str(cur_temp) + "°", WHITE)
                 text(1, 14, "Chiller on", CYAN)
             elif is_heating
                 # Heater is ON: Line 1 = "Pool:" / "Spa:", Line 2 = "[cur]° -> [target]°"
@@ -153,8 +154,8 @@ class PoolSpaMonitor
                 var x3 = x2 + 12
                 text(x3, 14, str(target_temp) + "°", ORANGE)
             else
-                # Heater & Chiller are OFF: keep temperature on the SAME line as text
-                text(1, 10, (is_spa ? "Spa: " : "Pool: ") + str(cur_temp) + "°", BLUE)
+                # Heater & Chiller are OFF: keep temperature on the SAME line as text in WHITE
+                text(1, 10, (is_spa ? "Spa: " : "Pool: ") + str(cur_temp) + "°", WHITE)
             end
             return
         end
@@ -164,15 +165,15 @@ class PoolSpaMonitor
         # -------------------------------------------------------------
         if is_chilling
             # Chiller is ON on 32x8:
-            # Top row: "POOL: [temp]°"
-            # Bottom row (rows 3-7): "CHILL ON"
-            text(1, 3, "P:" + str(cur_temp) + "°", CYAN)
+            # Top row: "P:[temp]°" (white text), with cyan indicator dot
+            # Bottom row (rows 3-7): "CHILL ON" in cool cyan
+            text(1, 3, "P:" + str(cur_temp) + "°", WHITE)
             pixel(30, 1, CYAN) # Cyan chiller indicator dot on top right
             self.draw_tiny(1, 3, "CHILL ON", CYAN)
 
         elif is_heating
             # Heater is ON on 32x8:
-            # Top row: "POOL" or "SPA" + heating dot
+            # Top row: "POOL" or "SPA" + orange heating dot
             text(1, 3, is_spa ? "SPA" : "POOL", WHITE)
             pixel(30, 1, ORANGE)
 
@@ -183,10 +184,10 @@ class PoolSpaMonitor
 
         else
             # Heater & Chiller are OFF:
-            # Keep on the SAME single line: "Pool 62°" or "Spa 98°"
+            # Keep on the SAME single line: "Pool [temp]°" or "Spa [temp]°" in WHITE
             text(1, 6, is_spa ? "Spa" : "Pool", WHITE)
             var temp_x = is_spa ? 16 : 20
-            text(temp_x, 6, str(cur_temp) + "°", BLUE)
+            text(temp_x, 6, str(cur_temp) + "°", WHITE)
         end
     end
 end
