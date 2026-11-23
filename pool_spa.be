@@ -1,7 +1,7 @@
 # @name Pool & Spa Monitor
-# @desc Static 2-line pool & spa display without scrolling
+# @desc Live pool & spa display with heating and chiller states
 # @author Assistant
-# @version 3.0
+# @version 3.1
 
 import json
 
@@ -10,6 +10,7 @@ class PoolSpaMonitor
     var pool_target
     var pool_pump
     var pool_heat
+    var pool_chiller
 
     var spa_temp
     var spa_target
@@ -24,13 +25,14 @@ class PoolSpaMonitor
         self.pool_target = 86
         self.pool_pump = false
         self.pool_heat = false
+        self.pool_chiller = false
 
         self.spa_temp = 98
         self.spa_target = 100
         self.spa_pump = false
         self.spa_heat = false
 
-        # Bitmaps for 0-9, degree, arrow, dash, space (3 columns x 5 rows)
+        # Bitmaps for 0-9, degree, arrow, dash, space, letters C, H, I, L (3 columns x 5 rows)
         self.font3x5 = {
             '0': [0x1F, 0x11, 0x1F],
             '1': [0x00, 0x1F, 0x00],
@@ -45,7 +47,13 @@ class PoolSpaMonitor
             '°': [0x03, 0x03, 0x00],
             '-': [0x04, 0x04, 0x04],
             '>': [0x11, 0x0A, 0x04],
-            ' ': [0x00, 0x00, 0x00]
+            ' ': [0x00, 0x00, 0x00],
+            'C': [0x1F, 0x11, 0x11],
+            'H': [0x1F, 0x04, 0x1F],
+            'I': [0x00, 0x1F, 0x00],
+            'L': [0x1F, 0x10, 0x10],
+            'O': [0x1F, 0x11, 0x1F],
+            'N': [0x1F, 0x06, 0x1F]
         }
     end
 
@@ -58,6 +66,7 @@ class PoolSpaMonitor
             if data.find("pool_target") != nil self.pool_target = int(data["pool_target"]) end
             if data.find("pool_pump") != nil self.pool_pump = bool(data["pool_pump"]) end
             if data.find("pool_heat") != nil self.pool_heat = bool(data["pool_heat"]) end
+            if data.find("pool_chiller") != nil self.pool_chiller = bool(data["pool_chiller"]) end
 
             if data.find("spa") != nil self.spa_temp = int(data["spa"]) end
             if data.find("spa_target") != nil self.spa_target = int(data["spa_target"]) end
@@ -90,7 +99,7 @@ class PoolSpaMonitor
     end
 
     def duration()
-        if (self.pool_pump && self.pool_heat) || (self.spa_pump && self.spa_heat)
+        if (self.pool_pump && (self.pool_heat || self.pool_chiller)) || (self.spa_pump && self.spa_heat)
             return 12000
         end
         return 7000
@@ -101,6 +110,7 @@ class PoolSpaMonitor
 
         var ORANGE = 0xFF7700
         var BLUE   = 0x00B4D8
+        var CYAN   = 0x00E5FF
         var WHITE  = 0xFFFFFF
         var GRAY   = 0x777777
 
@@ -110,17 +120,18 @@ class PoolSpaMonitor
                 text(1, 6, "POOL PUMP", GRAY)
                 text(1, 14, "OFF", GRAY)
             else
-                # Single screen static alert
                 text(1, 6, "PUMP OFF", GRAY)
             end
             return
         end
 
-        # Decide which body of water is active (Spa takes visual priority if running)
-        var name = self.spa_pump ? "Spa:" : "Pool:"
-        var cur_temp = self.spa_pump ? self.spa_temp : self.pool_temp
-        var target_temp = self.spa_pump ? self.spa_target : self.pool_target
-        var is_heating = self.spa_pump ? self.spa_heat : self.pool_heat
+        # Spa takes priority if running, otherwise Pool
+        var is_spa = self.spa_pump
+        var name = is_spa ? "Spa:" : "Pool:"
+        var cur_temp = is_spa ? self.spa_temp : self.pool_temp
+        var target_temp = is_spa ? self.spa_target : self.pool_target
+        var is_heating = is_spa ? self.spa_heat : self.pool_heat
+        var is_chilling = !is_spa && self.pool_pump && self.pool_chiller
 
         var cur_color = (cur_temp >= target_temp) ? ORANGE : BLUE
 
@@ -128,12 +139,13 @@ class PoolSpaMonitor
         # Case A: TALL DISPLAY (TC002, 52x16)
         # -------------------------------------------------------------
         if height() >= 16
-            # Line 1: Header ("Pool:" or "Spa:")
-            text(1, 6, name, WHITE)
-
-            # Line 2: Temperatures
-            if is_heating
-                # Line 2: "[cur]° -> [target]°"
+            if is_chilling
+                # Chiller is ON: Line 1 = "Pool: [cur]°", Line 2 = "Chiller on"
+                text(1, 6, "Pool: " + str(cur_temp) + "°", CYAN)
+                text(1, 14, "Chiller on", CYAN)
+            elif is_heating
+                # Heater is ON: Line 1 = "Pool:" / "Spa:", Line 2 = "[cur]° -> [target]°"
+                text(1, 6, name, WHITE)
                 var x1 = 1
                 text(x1, 14, str(cur_temp) + "°", cur_color)
                 var x2 = x1 + (cur_temp >= 100 ? 18 : 14)
@@ -141,8 +153,8 @@ class PoolSpaMonitor
                 var x3 = x2 + 12
                 text(x3, 14, str(target_temp) + "°", ORANGE)
             else
-                # Line 2: "temp [cur]°"
-                text(1, 14, str(cur_temp) + "°", BLUE)
+                # Heater & Chiller are OFF: keep temperature on the SAME line as text
+                text(1, 10, (is_spa ? "Spa: " : "Pool: ") + str(cur_temp) + "°", BLUE)
             end
             return
         end
@@ -150,26 +162,30 @@ class PoolSpaMonitor
         # -------------------------------------------------------------
         # Case B: STANDARD MATRIX DISPLAY (32x8)
         # -------------------------------------------------------------
-        if is_heating
-            # Top row (Rows 0-1): Title and heating indicator
-            if name == "Spa:"
-                text(1, 3, "SPA", WHITE)
-            else
-                text(1, 3, "POOL", WHITE)
-            end
-            # Subtle heating indicator dot on top right
+        if is_chilling
+            # Chiller is ON on 32x8:
+            # Top row: "POOL: [temp]°"
+            # Bottom row (rows 3-7): "CHILL ON"
+            text(1, 3, "P:" + str(cur_temp) + "°", CYAN)
+            pixel(30, 1, CYAN) # Cyan chiller indicator dot on top right
+            self.draw_tiny(1, 3, "CHILL ON", CYAN)
+
+        elif is_heating
+            # Heater is ON on 32x8:
+            # Top row: "POOL" or "SPA" + heating dot
+            text(1, 3, is_spa ? "SPA" : "POOL", WHITE)
             pixel(30, 1, ORANGE)
 
-            # Bottom row (Rows 3-7): 3x5 font "[cur]°->[target]°"
-            # Fits in ~26 columns across row y=3 without scrolling!
+            # Bottom row (rows 3-7): 3x5 font "[cur]°->[target]°"
             var nx = self.draw_tiny(1, 3, str(cur_temp) + "°", cur_color)
             nx = self.draw_tiny(nx, 3, "->", WHITE)
             self.draw_tiny(nx, 3, str(target_temp) + "°", ORANGE)
+
         else
-            # Not heating:
-            # Displays "[Pool|Spa] [temp]°" cleanly on a single static line (fits in 24-28px)
-            text(1, 6, self.spa_pump ? "Spa" : "Pool", WHITE)
-            var temp_x = self.spa_pump ? 16 : 20
+            # Heater & Chiller are OFF:
+            # Keep on the SAME single line: "Pool 62°" or "Spa 98°"
+            text(1, 6, is_spa ? "Spa" : "Pool", WHITE)
+            var temp_x = is_spa ? 16 : 20
             text(temp_x, 6, str(cur_temp) + "°", BLUE)
         end
     end
